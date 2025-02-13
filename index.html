@@ -20,9 +20,27 @@
             gap: 10px;
             margin-top: 15px;
         }
-        #downloadPdfBtn {
+        .action-btns {
             display: none;
-            margin-top: 10px;
+        }
+        .alert-dismissible {
+            padding-right: 4rem;
+        }
+        .close-btn {
+            position: absolute;
+            right: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: pointer;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            line-height: 1;
+        }
+        .success-alert {
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+            color: #155724;
         }
     </style>
 </head>
@@ -40,17 +58,21 @@
                 </div>
                 
                 <div class="btn-group mt-3">
-                    <button id="visualizarBtn" class="btn btn-primary" disabled onclick="visualizarPDF()">
-                        Visualizar PDF
+                    <button id="buscarBtn" class="btn btn-primary" disabled onclick="buscarNota()">
+                        Buscar NF-e
                     </button>
-                    <button id="xmlBtn" class="btn btn-secondary" disabled onclick="baixarXML()">
-                        Baixar XML
-                    </button>
+                    <div class="action-btns">
+                        <button id="visualizarBtn" class="btn btn-success" onclick="visualizarPDF()">
+                            Visualizar PDF
+                        </button>
+                        <button id="baixarXmlBtn" class="btn btn-primary" onclick="baixarXML()">
+                            Baixar XML
+                        </button>
+                        <button id="baixarPdfBtn" class="btn btn-success" style="display: none;" onclick="baixarPDF()">
+                            Baixar PDF
+                        </button>
+                    </div>
                 </div>
-
-                <button id="downloadPdfBtn" class="btn btn-success">
-                    Baixar PDF
-                </button>
                 
                 <div id="loading" class="mt-3 text-center d-none">
                     <div class="spinner-border text-primary" role="status">
@@ -59,7 +81,15 @@
                     <p class="mt-2">Processando...</p>
                 </div>
                 
-                <div id="error" class="alert alert-danger mt-3 d-none"></div>
+                <div id="success" class="alert success-alert alert-dismissible mt-3 d-none">
+                    <span>NF-e localizada com sucesso!</span>
+                    <button class="close-btn" onclick="fecharMensagem(this)">×</button>
+                </div>
+                
+                <div id="error" class="alert alert-danger alert-dismissible mt-3 d-none">
+                    <span></span>
+                    <button class="close-btn" onclick="fecharMensagem(this)">×</button>
+                </div>
                 
                 <div id="pdfContainer" class="pdf-container d-none mt-4">
                     <iframe id="pdfViewer"></iframe>
@@ -69,47 +99,60 @@
     </div>
 
     <script>
+        let chaveAtual = '';
+        
         document.getElementById('nfeKey').addEventListener('input', function(e) {
             const chaveValida = validarChave(e.target.value);
-            document.getElementById('visualizarBtn').disabled = !chaveValida;
-            document.getElementById('xmlBtn').disabled = !chaveValida;
+            document.getElementById('buscarBtn').disabled = !chaveValida;
+            
+            if(e.target.value !== chaveAtual) {
+                resetarInterface();
+                document.getElementById('buscarBtn').style.display = 'inline-block';
+                document.querySelector('.action-btns').style.display = 'none';
+            }
         });
 
-        async function prepararDados(chave) {
-            const resposta = await fetch(`https://ws.meudanfe.com/api/v1/get/nfe/data/MEUDANFE/${chave}`, {
-                method: 'POST', // Alterado para POST
-                headers: { 'Content-Type': 'text/plain' },
-                body: "empty"
-            });
-
-            if (!resposta.ok) {
-                throw new Error(`Pré-requisição falhou: ${resposta.status}`);
-            }
-            return await resposta.text();
+        function resetarInterface() {
+            document.querySelector('.action-btns').style.display = 'none';
+            document.getElementById('baixarPdfBtn').style.display = 'none';
+            document.getElementById('visualizarBtn').style.display = 'inline-block';
+            document.getElementById('pdfContainer').classList.add('d-none');
+            document.getElementById('success').classList.add('d-none');
+            chaveAtual = '';
         }
 
-        async function visualizarPDF() {
+        async function buscarNota() {
             const chave = document.getElementById('nfeKey').value.trim();
             if (!validarChave(chave)) return;
 
             try {
                 toggleLoading(true);
-                
-                // Primeira requisição para preparar dados
                 await prepararDados(chave);
                 
-                // Segunda requisição para obter PDF
-                const pdfData = await obterDadosPDF(chave);
+                document.getElementById('buscarBtn').style.display = 'none';
+                document.querySelector('.action-btns').style.display = 'flex';
+                chaveAtual = chave;
+                mostrarSucesso('NF-e localizada com sucesso!');
+
+            } catch (erro) {
+                mostrarErro('Não foi possível localizar a NF-e. Verifique a chave e tente novamente.');
+            } finally {
+                toggleLoading(false);
+            }
+        }
+
+        async function visualizarPDF() {
+            try {
+                toggleLoading(true);
+                const pdfData = await obterDadosPDF(chaveAtual);
                 
                 document.getElementById('pdfContainer').classList.remove('d-none');
                 document.getElementById('pdfViewer').src = pdfData;
-                
-                const downloadBtn = document.getElementById('downloadPdfBtn');
-                downloadBtn.style.display = 'block';
-                downloadBtn.onclick = () => baixarPDF(pdfData, chave);
+                document.getElementById('visualizarBtn').style.display = 'none';
+                document.getElementById('baixarPdfBtn').style.display = 'inline-block';
 
             } catch (erro) {
-                mostrarErro(`Erro ao processar: ${erro.message}`);
+                mostrarErro(`Erro ao visualizar PDF: ${erro.message}`);
             } finally {
                 toggleLoading(false);
             }
@@ -132,26 +175,30 @@
             return `data:application/pdf;base64,${base64}`;
         }
 
-        async function baixarXML() {
-            const chave = document.getElementById('nfeKey').value.trim();
-            if (!validarChave(chave)) return;
+        function baixarPDF() {
+            const link = document.createElement('a');
+            link.href = document.getElementById('pdfViewer').src;
+            link.download = `DANFE-${chaveAtual}.pdf`;
+            link.click();
+        }
 
+        async function baixarXML() {
             try {
                 toggleLoading(true);
-                const resposta = await fetch(`https://ws.meudanfe.com/api/v1/get/nfe/xml/${chave}`, {
+                const resposta = await fetch(`https://ws.meudanfe.com/api/v1/get/nfe/xml/${chaveAtual}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'text/plain' },
                     body: "empty"
                 });
 
-                if (!resposta.ok) throw new Error(`Erro HTTP: ${resposta.status}`);
+                if (!resposta.ok) throw new Error(`Erro ao baixar XML: ${resposta.status}`);
                 
                 const xml = await resposta.text();
                 const blob = new Blob([xml], { type: 'application/xml' });
                 const url = window.URL.createObjectURL(blob);
                 const link = document.createElement('a');
                 link.href = url;
-                link.download = `NFE-${chave}.xml`;
+                link.download = `NFE-${chaveAtual}.xml`;
                 link.click();
                 window.URL.revokeObjectURL(url);
 
@@ -159,6 +206,18 @@
                 mostrarErro(`Erro ao baixar XML: ${erro.message}`);
             } finally {
                 toggleLoading(false);
+            }
+        }
+
+        async function prepararDados(chave) {
+            const resposta = await fetch(`https://ws.meudanfe.com/api/v1/get/nfe/data/MEUDANFE/${chave}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain' },
+                body: "empty"
+            });
+
+            if (!resposta.ok) {
+                throw new Error('Erro na comunicação com o servidor');
             }
         }
 
@@ -170,18 +229,23 @@
             document.getElementById('loading').classList.toggle('d-none', !estado);
         }
 
-        function mostrarErro(mensagem) {
-            const errorDiv = document.getElementById('error');
-            errorDiv.textContent = mensagem;
-            errorDiv.classList.remove('d-none');
-            setTimeout(() => errorDiv.classList.add('d-none'), 5000);
+        function fecharMensagem(botao) {
+            const alerta = botao.parentElement;
+            alerta.classList.add('d-none');
         }
 
-        function baixarPDF(pdfData, chave) {
-            const link = document.createElement('a');
-            link.href = pdfData;
-            link.download = `DANFE-${chave}.pdf`;
-            link.click();
+        function mostrarSucesso(mensagem) {
+            const successDiv = document.getElementById('success');
+            successDiv.querySelector('span').textContent = mensagem;
+            successDiv.classList.remove('d-none');
+            setTimeout(() => successDiv.classList.add('d-none'), 5000);
+        }
+
+        function mostrarErro(mensagem) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.querySelector('span').textContent = mensagem;
+            errorDiv.classList.remove('d-none');
+            setTimeout(() => errorDiv.classList.add('d-none'), 5000);
         }
     </script>
 </body>
