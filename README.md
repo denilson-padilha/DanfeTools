@@ -31,11 +31,12 @@ Uma aplicação web moderna para visualização e download de DANFEs e XMLs de N
 
 ## 🚀 Como Usar
 
-1. **Digite ou cole a chave completa (44 dígitos) no campo indicado**  
-
+1. **Digite ou cole a chave completa (44 dígitos) no campo indicado**
+<br><br>
 ## 🖥 Demonstração Online
 > <a href="https://denilson-padilha.github.io/DanfeTools/" target="_blank">
 >   <img src="https://img.shields.io/badge/-%F0%9F%8C%8E_Teste_agora-%2300C7B7?style=for-the-badge&logo=google-chrome&logoColor=white" alt="Teste Agora">
 > </a>
-   
+
+<br><br>
 Feito com ❤️ por [Denilson Padilha](https://github.com/denilson-padilha/DanfeTools)
